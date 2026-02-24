@@ -1,0 +1,82 @@
+name: Windows x86 Build & Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag (e.g. v1.0.0)"
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Configure (x86 release)
+        shell: pwsh
+        run: |
+          xmake config -a x86 -m release -P .
+
+      - name: Build
+        shell: pwsh
+        run: |
+          xmake -P .
+
+      - name: Package artifacts
+        id: package
+        shell: pwsh
+        run: |
+          $artifactName = "AlphaRom_Crack-windows-x86-${{ github.run_number }}.zip"
+          if (Test-Path $artifactName) {
+            Remove-Item $artifactName -Force
+          }
+          if (-Not (Test-Path "build")) {
+            Write-Error "build directory not found. Ensure xmake build succeeded."
+          }
+          Compress-Archive -Path "build\*" -DestinationPath $artifactName
+          "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AlphaRom_Crack-windows-x86
+          path: ${{ steps.package.outputs.artifact_name }}
+
+      - name: Set release tag name
+        id: set_tag
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $tag = "${{ github.ref_name }}"
+          }
+          else {
+            $tag = "${{ inputs.tag_name }}"
+          }
+          "tag_name=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.set_tag.outputs.tag_name }}
+          name: AlphaRom_Crack ${{ steps.set_tag.outputs.tag_name }}
+          draft: false
+          prerelease: false
+          files: ${{ steps.package.outputs.artifact_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
