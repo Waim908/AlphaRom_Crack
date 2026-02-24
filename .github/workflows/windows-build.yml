@@ -27,6 +27,12 @@ jobs:
         with:
           xmake-version: latest
 
+      - name: Install dependencies (non-interactive)
+        shell: pwsh
+        run: |
+          # 安装 xmake.lua 中声明的依赖（如 microsoft-detours），加 -y 跳过交互确认
+          xmake require -y
+
       - name: Configure (x86 release)
         shell: pwsh
         run: |
